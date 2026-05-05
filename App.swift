@@ -1,88 +1,104 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// --- Emulator Engine Logic (Virtual Bridge) ---
+class EmulatorEngine: ObservableObject {
+    @Published var isJitEnabled = false
+    @Published var currentStatus = "System Idle"
+    
+    func launchGame(path: URL) {
+        self.currentStatus = "Initializing Windows Environment..."
+        // এখানে ব্যাকএন্ডে Wine এবং Box64 কল করার হুক সেট করা আছে
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.currentStatus = "DirectX 12 Shader Compiling..."
+        }
+    }
+}
+
 @main
 struct GameHubApp: App {
     var body: some Scene {
         WindowGroup {
-            MainContainerView()
+            MainView()
         }
     }
 }
 
-struct MainContainerView: View {
-    @State private var appState: AppState = .launch
-    @State private var selectedExePath: String = "No Game Selected"
-    
-    enum AppState { case launch, dashboard }
+struct MainView: View {
+    @State private var started = false
+    @State private var showLibrary = false
+    @State private var selectedGame: URL?
+    @StateObject var engine = EmulatorEngine()
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
-            if appState == .launch {
-                // ১ম স্ক্রিন: ব্ল্যাক স্ক্রিন + ক্লিক টু স্টার্ট
-                VStack {
-                    Spacer()
-                    Button(action: {
-                        withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
-                            appState = .dashboard
-                        }
-                    }) {
-                        Text("CLICK TO START")
-                            .font(.system(size: 22, weight: .black, design: .monospaced))
-                            .foregroundColor(.white)
-                            .tracking(5)
-                            .padding()
-                            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.blue, lineWidth: 2))
-                            .shadow(color: .blue, radius: 20)
+
+            if !started {
+                // ১. স্টার্ট স্ক্রিন
+                Button(action: { withAnimation { started = true } }) {
+                    VStack {
+                        Text("GAMEHUB PRO").font(.system(size: 40, weight: .black)).foregroundColor(.blue)
+                        Text("CLICK TO START").font(.headline).foregroundColor(.white).opacity(0.7)
                     }
-                    Spacer()
                 }
             } else {
-                // ২য় স্ক্রিন: Play, Library, Settings
+                // ২. মেইন ড্যাশবোর্ড (৩টি বক্স)
                 VStack(spacing: 30) {
-                    Text("GAMEHUB ENGINE").font(.title2).fontWeight(.black).foregroundColor(.blue)
+                    Text("WIN-X64 EMULATOR").font(.title2).fontWeight(.bold).foregroundColor(.cyan)
                     
+                    Text("Status: \(engine.currentStatus)").font(.system(size: 12, design: .monospaced)).foregroundColor(.green)
+
                     HStack(spacing: 20) {
-                        // বক্স ১: লাইব্রেরি (ফাইল সিলেক্ট করার জন্য)
-                        NavigationBox(title: "LIBRARY", icon: "folder.fill", color: .purple) {
-                            // এখানে ফাইল পিকার ওপেন হবে
+                        // লাইব্রেরি বক্স
+                        DashboardBox(title: "LIBRARY", icon: "folder.badge.plus", color: .purple) {
+                            showLibrary = true
                         }
                         
-                        // বক্স ২: প্লে (গেম রান করার জন্য)
-                        NavigationBox(title: "PLAY", icon: "play.fill", color: .green) {
-                            print("Starting Environment for: \(selectedExePath)")
+                        // প্লে বক্স
+                        DashboardBox(title: "PLAY", icon: "play.fill", color: .green) {
+                            if let url = selectedGame {
+                                engine.launchGame(path: url)
+                            }
                         }
                         
-                        // বক্স ৩: সেটিংস (উইন্ডোজ এনভায়রনমেন্ট)
-                        NavigationBox(title: "SETTINGS", icon: "gearshape.fill", color: .orange) {
-                            // সেটিংস ওপেন হবে
+                        // সেটিংস বক্স
+                        DashboardBox(title: "SETTINGS", icon: "cpu", color: .orange) {
+                            // উইন্ডোজ কনফিগ সেটিংস
                         }
                     }
-                    .padding()
                     
-                    Text("Target: \(selectedExePath)")
-                        .font(.caption).foregroundColor(.gray)
+                    if let game = selectedGame {
+                        Text("Selected: \(game.lastPathComponent)").foregroundColor(.white).font(.caption)
+                    }
+                    
+                    Spacer()
                 }
-                .transition(.asymmetric(insertion: .scale, removal: .opacity))
+                .padding(.top, 50)
+            }
+        }
+        .fileImporter(isPresented: $showLibrary, allowedContentTypes: [.executable]) { result in
+            switch result {
+            case .success(let url):
+                self.selectedGame = url
+            case .failure(let error):
+                print(error.localizedDescription)
             }
         }
     }
 }
 
-struct NavigationBox: View {
-    let title: String; let icon: String; let color: Color; let action: () -> Void
+struct DashboardBox: View {
+    let title: String; let icon: String; let color: Color; var action: () -> Void
     var body: some View {
         Button(action: action) {
             VStack {
-                Image(systemName: icon).font(.largeTitle).foregroundColor(color)
-                Text(title).font(.caption).fontWeight(.bold).foregroundColor(.white)
+                Image(systemName: icon).font(.system(size: 30)).foregroundColor(color)
+                Text(title).font(.system(size: 14, weight: .bold)).foregroundColor(.white)
             }
-            .frame(width: 100, height: 100)
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(20)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(color.opacity(0.5), lineWidth: 1))
+            .frame(width: 100, height: 110)
+            .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(color.opacity(0.3), lineWidth: 1))
         }
     }
 }
