@@ -1,4 +1,4 @@
-name: GameHub-Ultimate-Build
+name: GameHub-Ultimate-Fix
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build GameHub Pro IPA
+    name: Fix Binary Mapping and Build
     runs-on: macos-latest
     steps:
       - name: Checkout Code
@@ -16,11 +16,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Setup Project Directory
+      - name: Setup Fix Directory
         run: |
           mkdir -p GameHub
           
-          # ১. Info.plist তৈরি (ফাইল সাপোর্ট এবং ল্যান্ডস্কেপ মোডসহ)
+          # ১. CFBundleExecutable এবং CFBundleIdentifier সুনির্দিষ্ট করা হয়েছে
           cat <<EOF > GameHub/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,27 +55,12 @@ jobs:
           </plist>
           EOF
 
-          # ২. Entitlements তৈরি (GTA 5 এর জন্য JIT এবং মেমরি পারমিশন)
-          cat <<EOF > GameHub/GameHub.entitlements
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>get-task-allow</key>
-              <true/>
-              <key>com.apple.developer.kernel.extended-virtual-addressing</key>
-              <true/>
-              <key>com.apple.private.security.no-sandbox</key>
-              <true/>
-          </dict>
-          </plist>
-          EOF
-
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      - name: Build Archive
+      - name: Build and Fix Binary
         run: |
+          # এই কমান্ডটি বাইনারি ফাইলকে সঠিক পারমিশন দিয়ে আর্ক্রাইভ করবে
           xcodebuild archive \
             -project GameHub.xcodeproj \
             -scheme GameHub \
@@ -84,17 +69,22 @@ jobs:
             -archivePath build/GameHub.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Export IPA (The Emulator Package)
+      - name: Export IPA with Correct Structure
         run: |
           mkdir -p build/Payload
-          cp -r build/GameHub.xcarchive/Products/Applications/*.app build/Payload/
+          cp -r build/GameHub.xcarchive/Products/Applications/GameHub.app build/Payload/
+          
+          # বাইনারি ফাইলের এক্সিকিউটেবল পারমিশন নিশ্চিত করা (এটিই এরর সলভ করবে)
+          chmod +x build/Payload/GameHub.app/GameHub
+          
           cd build
-          zip -qr GameHub_Pro_V2.ipa Payload
+          zip -qr GameHub_Fixed.ipa Payload
 
-      - name: Upload Finished IPA
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameHub-Pro-V2-Installation-File
-          path: build/GameHub_Pro_V2.ipa
+          name: GameHub-No-Error-IPA
+          path: build/GameHub_Fixed.ipa
