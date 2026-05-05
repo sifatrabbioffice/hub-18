@@ -1,0 +1,18 @@
+name: GameHub
+options:
+  bundleIdPrefix: com.sifat.gamehub
+targets:
+  GameHub:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [GameHub]
+    settings:
+      base:
+        INFOPLIST_FILE: GameHub/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.sifat.gamehub.pro
+        # হাই-পারফরম্যান্স গেম এনভায়রনমেন্ট সেটিংস
+        ENABLE_BITCODE: NO
+        OTHER_LDFLAGS: "-Wl,-sectcreate,__TEXT,__info_plist,GameHub/Info.plist"
+        # জিপিইউ এক্সিলারেশন হুক
+        MTL_ENABLE_DEBUG_INFO: NO
