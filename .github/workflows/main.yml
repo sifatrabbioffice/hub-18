@@ -75,16 +75,25 @@ jobs:
       - name: Export IPA with Correct Structure
         run: |
           mkdir -p build/Payload
-          cp -r build/GameHub.xcarchive/Products/Applications/GameHub.app build/Payload/
           
-          # বাইনারি ফাইলের এক্সিকিউটেবল পারমিশন নিশ্চিত করা (এটিই এরর সলভ করবে)
-          chmod +x build/Payload/GameHub.app/GameHub
+          # ১. অ্যাপ ফাইলটি কপি করা
+          cp -r build/GameHub.xcarchive/Products/Applications/*.app build/Payload/
           
+          # ২. ডাইনামিকলি বাইনারি ফাইল খুঁজে বের করা (যাতে No such file এরর না আসে)
+          APP_PATH=$(ls -d build/Payload/*.app)
+          APP_NAME=$(basename "$APP_PATH" .app)
+          
+          echo "Fixing permissions for: $APP_NAME"
+          
+          # বাইনারি ফাইলটিকে এক্সিকিউটেবল করা
+          chmod +x "$APP_PATH/$APP_NAME"
+          
+          # ৩. জিপ করা
           cd build
-          zip -qr GameHub_Fixed.ipa Payload
+          zip -qr GameHub_Final.ipa Payload
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameHub-No-Error-IPA
-          path: build/GameHub_Fixed.ipa
+          name: GameHub-Pro-Working
+          path: build/GameHub_Final.ipa
