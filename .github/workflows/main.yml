@@ -72,40 +72,37 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Export IPA with Deep Search Fix
+      - name: Export IPA with Force Binary Fix
         run: |
           mkdir -p build/Payload
           
           # ১. অ্যাপ ফাইলটি কপি করা
           cp -r build/GameHub.xcarchive/Products/Applications/*.app build/Payload/
           
-          # ২. সঠিক পাথ সেট করা
+          # ২. অ্যাপের পাথ সেট করা
           APP_PATH=$(ls -d build/Payload/*.app)
+          echo "App Path: $APP_PATH"
           
-          # ৩. ইনফো লিস্ট থেকে আসল বাইনারি নাম খুঁজে বের করা (সবচেয়ে নিরাপদ উপায়)
-          # যদি CFBundleExecutable না থাকে, তবে আমরা অ্যাপের নামই ব্যবহার করব
-          BINARY_NAME=$(defaults read "$(pwd)/$APP_PATH/Info.plist" CFBundleExecutable)
+          # ৩. সরাসরি বাইনারি ফাইলের পারমিশন ফিক্স করা (Force Method)
+          # আমরা অ্যাপ ফোল্ডারের ভেতরে ঢুকে সরাসরি chmod চালাব
+          pushd "$APP_PATH"
+            # Info.plist থেকে নাম বের করার চেষ্টা
+            BINARY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" Info.plist)
+            echo "Targeting Binary: $BINARY_NAME"
+            
+            # সরাসরি পারমিশন দেওয়া
+            chmod +x "$BINARY_NAME" || echo "Failed to chmod by name"
+            
+            # ব্যাকআপ: যদি উপরেরটা ফেইল করে, তবে সব ফাইলকে এক্সিকিউটেবল করার চেষ্টা করবে (নিরাপদ উপায়)
+            find . -maxdepth 1 -type f -not -name "*.*" -exec chmod +x {} +
+          popd
           
-          echo "Detected Binary Name: $BINARY_NAME"
-          
-          # ৪. ফাইলটি আছে কিনা চেক করা এবং পারমিশন দেওয়া
-          if [ -f "$APP_PATH/$BINARY_NAME" ]; then
-              chmod +x "$APP_PATH/$BINARY_NAME"
-              echo "Successfully fixed permissions for $BINARY_NAME"
-          else
-              # যদি না পাওয়া যায়, তবে অ্যাপ ফোল্ডারের ভেতর সবচেয়ে বড় ফাইলটিই সাধারণত বাইনারি হয়
-              echo "Warning: Specific binary not found, searching for the largest file..."
-              TARGET=$(find "$APP_PATH" -maxdepth 1 -type f -not -name "PkgInfo" -not -name "*.plist" | xargs du -s | sort -n | tail -1 | cut -f2)
-              chmod +x "$TARGET"
-              echo "Permissions applied to: $(basename "$TARGET")"
-          fi
-          
-          # ৫. ফাইনাল জিপিং
+          # ৪. জিপ করা
           cd build
           zip -qr GameHub_Final.ipa Payload
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameHub-Pro-Final
+          name: GameHub-Pro-Fixed
           path: build/GameHub_Final.ipa
